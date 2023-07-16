@@ -1,20 +1,69 @@
-import java.util.ArrayList
+ import kotlin.time.ExperimentalTime
+import kotlin.time.measureTime
 
+@OptIn(ExperimentalTime::class)
 fun main() {
-    val numbers = listOf(9,8,7,6,5,4,3,2,1, 10)
-    val permutations = digitPermutations(numbers)
+    val elements =
+        (10 downTo 1)  // internally this will remain ordered and be 2x faster overall
+            .toSet()
+//    val permutations = digitPermutationsRecursive(elements.toList())
+    val permutations = generatePermutationsIteratively(elements)
 
-    val solutions = permutations
-        .map { rawDigitsToCandidate(it) }
-        .filter { is16Digits(it) }
-        .filter { isValid(it) }
-        .map { value(it) }
-        .toList()
+    var solutions: List<Long>
+    val runTime = measureTime {
+        solutions = permutations
+            .asSequence()
+            .map { rawDigitsToCandidate(it) }
+            .filter { is16Digits(it) }
+            .filter { isValid(it) }
+            .map { value(it) }
+            .toList()
+    }
 
     println(solutions.max())
+    println(runTime)
 }
 
-fun digitPermutations(remainingDigits: List<Int>): List<List<Int>> {
+/**
+ * Generates permutations using Heap's algorithm, a bit faster and now generic
+ */
+fun <T> generatePermutationsIteratively(elements: Set<T>): List<List<T>> {
+    val workingElements = elements.toMutableList()
+    val numElements = workingElements.size
+    val numPermutations = (1..numElements).reduce{ acc, i -> acc*i } // factorial
+    val permutations = ArrayList<List<T>>(numPermutations)
+
+    val stackState = workingElements.map { 0 }.toMutableList()
+
+    permutations.add(workingElements.toList())
+
+    var index = 1
+    while (index < numElements) {
+        if (stackState[index] < index) {
+            if (index % 2 == 0) {
+                val temporarySwapValue = workingElements[0]
+                workingElements[0] = workingElements[index]
+                workingElements[index] = temporarySwapValue
+            } else {
+                val temporarySwapValue = workingElements[stackState[index]]
+                workingElements[stackState[index]] = workingElements[index]
+                workingElements[index] = temporarySwapValue
+            }
+
+            permutations.add(workingElements.toList())
+
+            stackState[index] += 1
+            index = 1
+        } else {
+            stackState[index] = 0
+            index += 1
+        }
+    }
+
+    return permutations
+}
+
+fun digitPermutationsRecursive(remainingDigits: List<Int>): List<List<Int>> {
     if (remainingDigits.size == 1) {
         return listOf(remainingDigits)
     }
@@ -24,7 +73,7 @@ fun digitPermutations(remainingDigits: List<Int>): List<List<Int>> {
         val newRemainingDigits = mutableListOf<Int>()
         newRemainingDigits.addAll(remainingDigits.subList(0, i))
         newRemainingDigits.addAll(remainingDigits.subList(i + 1, remainingDigits.size))
-        digitPermutations(newRemainingDigits)
+        digitPermutationsRecursive(newRemainingDigits)
             .forEach {
                 val working = mutableListOf<Int>()
                 working.add(remainingDigits[i])
@@ -35,6 +84,8 @@ fun digitPermutations(remainingDigits: List<Int>): List<List<Int>> {
 
     return collection
 }
+
+// Non-reusable, rolled out loops and hardcoded. Fits in smol brain and run fast
 
 fun rawDigitsToCandidate(digits: List<Int>) =
     listOf(
